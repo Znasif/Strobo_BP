@@ -148,20 +148,16 @@
 			"requirement": "optional"
 		},
 		{
-			"name": "/actions/main/in/up axis",
-			"type": "vector1"
+			"name": "/actions/main/in/left",
+			"type": "boolean"
 		},
 		{
-			"name": "/actions/main/in/down axis",
-			"type": "vector1"
+			"name": "/actions/main/in/right",
+			"type": "boolean"
 		},
 		{
-			"name": "/actions/main/in/left axis",
-			"type": "vector1"
-		},
-		{
-			"name": "/actions/main/in/right axis",
-			"type": "vector1"
+			"name": "/actions/main/in/Select",
+			"type": "boolean"
 		},
 		{
 			"name": "/actions/main/in/magnify axis",
@@ -412,10 +408,9 @@
 			"/actions/main/out/vibrateleft": "Haptic (Left)",
 			"/actions/main/out/vibrateright": "Haptic (Right)",
 			"/actions/main/in/open_console": "Open Console",
-			"/actions/main/in/up axis": "up",
-			"/actions/main/in/down axis": "down",
-			"/actions/main/in/left axis": "left",
-			"/actions/main/in/right axis": "right",
+			"/actions/main/in/left": "left",
+			"/actions/main/in/right": "right",
+			"/actions/main/in/Select": "Select",
 			"/actions/main/in/magnify axis": "magnify",
 			"/actions/main/in/minify axis": "minify",
 			"/actions/main": "Main Game Actions"
