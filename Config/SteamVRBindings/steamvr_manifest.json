@@ -166,6 +166,10 @@
 		{
 			"name": "/actions/main/in/minify axis",
 			"type": "vector1"
+		},
+		{
+			"name": "/actions/main/in/motion_lr,motion_td X Y_axis2d",
+			"type": "vector2"
 		}
 	],
 	"action_sets": [
@@ -413,6 +417,7 @@
 			"/actions/main/in/Select": "Select",
 			"/actions/main/in/magnify axis": "magnify",
 			"/actions/main/in/minify axis": "minify",
+			"/actions/main/in/motion_lr,motion_td X Y_axis2d": "motion_lr,motion_td X Y_axis2d",
 			"/actions/main": "Main Game Actions"
 		}
 	]
