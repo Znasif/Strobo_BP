@@ -58,7 +58,7 @@ bool UOptotypeComponent::SaveArrayText(FString SaveDirectory, FString FileName, 
 
 }
 
-void UOptotypeComponent::TestProtocol(ACameraActor* camera, USceneComponent* stimuli_plane, USceneComponent* background_plane, USoundCue* metronome_cue)
+void UOptotypeComponent::TestProtocol(ACameraActor* camera, USceneComponent* stimuli_plane, USceneComponent* background_plane, UAudioComponent* audio_comp, USoundCue* metronome_cue)
 {
 	//FTimerHandle MetronomeTimerHandle, OptotypeTimerHandle, StroboTimerHandle;
 	//	float metronome_frequency, optotype_frequency, stroboscopic_frequency;
@@ -69,8 +69,9 @@ void UOptotypeComponent::TestProtocol(ACameraActor* camera, USceneComponent* sti
 	stimuli_mat = UMaterialInstanceDynamic::Create(opto->GetMaterial(0), this);
 	opto->SetMaterial(0, stimuli_mat);
 	mycamera = camera->GetCameraComponent();
-	metronome_comp = CreateDefaultSubobject<UAudioComponent>(TEXT("MetronomeAudioComponent"));
-	metronome_comp->AttachTo(optoPlane);
+	metronome_comp = audio_comp;
+	//FAttachmentTransformRules rules(EAttachmentRule::SnapToTarget, EAttachmentRule::SnapToTarget, EAttachmentRule::SnapToTarget, false);
+	//metronome_comp->AttachToComponent(optoPlane, rules);
 	distance = FVector::Dist(background_plane->GetComponentLocation(), mycamera->GetComponentLocation())-10.0f;
 
 	switch (motion_direction)
@@ -108,13 +109,13 @@ void UOptotypeComponent::TestProtocol(ACameraActor* camera, USceneComponent* sti
 	NormalSettings = mycamera->PostProcessSettings;
 
 	pos_in_session = 0;
-	NextSession();
 }
 
 void UOptotypeComponent::NextSession() {
 	if (ready_to_quit_game) {
 		return;
 	}
+	session_in = true;
 	previous_logMAR = initial_logMAR;
 	current_logMAR = previous_logMAR - 0.1f;
 	optoPlane->SetRelativeLocation(default_opto_position);
@@ -130,7 +131,7 @@ void UOptotypeComponent::NextSession() {
 
 	metronome_comp->Play();
 
-	if (pos_in_session < 12) {
+	if (pos_in_session <= end_session_id) {
 		minification = minification_array[pos_in_session];
 		stroboscope_on = strobo_on_array[pos_in_session];
 		strobo_state = true;
@@ -140,6 +141,7 @@ void UOptotypeComponent::NextSession() {
 	}
 	else {
 		ready_to_quit_game = true;
+		UKismetSystemLibrary::QuitGame(GetWorld(), nullptr, EQuitPreference::Quit, false);
 		return;
 	}
 	if (optotype_duration > 0.0f) GetWorld()->GetTimerManager().SetTimer(OptotypeTimerHandle, OptotypeTimerDelegate, 0.005f, true, 0.0f);
@@ -148,7 +150,15 @@ void UOptotypeComponent::NextSession() {
 	opto_orientation = OptoOrientation::Right;
 	total_opto_tested = 0;
 	total_opto_correct = 0;
-	NextStimuli();
+}
+
+void UOptotypeComponent::SessionBreak() {
+	metronome_comp->Stop();
+	
+	GetWorld()->GetTimerManager().ClearTimer(OptotypeTimerHandle);
+	GetWorld()->GetTimerManager().ClearTimer(StroboTimerHandle);
+	mycamera->PostProcessSettings = NormalSettings;
+	session_in = false;
 }
 
 void UOptotypeComponent::SaveSessionData()
@@ -192,7 +202,13 @@ void UOptotypeComponent::SaveSessionData()
 	temp += FString::SanitizeFloat(result_per_session[10]) + ",";
 	//Measure DVA with headset (again)
 	temp += FString::SanitizeFloat(result_per_session[11]) + ",";
+
+	DVA_Data.Add(temp);
+
+	FString SaveLocation = FPaths::ConvertRelativePathToFull(FPaths::ProjectSavedDir());
+	SaveArrayText(SaveLocation, Subject_ID+"_"+FString::FromInt(start_session_id)+"_"+ FString::FromInt(end_session_id) +"_DVA.csv", DVA_Data);
 	pos_in_session++;
+	session_in = false;
 	SessionBreak();
 }
 
@@ -201,6 +217,9 @@ void UOptotypeComponent::NextStimuli()
 	opto_orientation = static_cast<OptoOrientation>(FMath::Fmod((int)opto_orientation + FMath::RandRange(1, 7), 8));
 	if(opto_orientation == OptoOrientation::Middle){
 		opto_orientation = OptoOrientation::Right;
+	}
+	if (opto_orientation == OptoOrientation::Zero) {
+		opto_orientation = OptoOrientation::Left;
 	}
 	stimuli_mat->SetScalarParameterValue(FName("orientation"), response_mapping[(int)opto_orientation-1]);
 }
@@ -234,11 +253,6 @@ void UOptotypeComponent::AssessResponse(OptoOrientation response) {
 		total_opto_tested = 0;
 		total_opto_correct = 0;
 	}
-}
-
-void UOptotypeComponent::SessionBreak() {
-	metronome_comp->Stop();
-	mycamera->PostProcessSettings = NormalSettings;
 }
 
 void UOptotypeComponent::OneMotionCycle(float dir) {

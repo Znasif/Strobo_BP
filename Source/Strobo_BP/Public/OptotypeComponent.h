@@ -22,6 +22,7 @@
 #include "GameFramework/Actor.h"
 #include "HAL/PlatformFilemanager.h"
 #include "Math/UnrealMathUtility.h"
+#include "Kismet/KismetSystemLibrary.h"
 #include "Kismet/KismetMathLibrary.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "OptotypeComponent.generated.h"
@@ -43,6 +44,7 @@ enum class Gender : uint8 {
 
 UENUM(BlueprintType)
 enum class OptoOrientation : uint8 {
+	Zero = 0 UMETA(DisplayName = "Left"),
 	Bottom_Left = 1 UMETA(DisplayName = "Bottom_Left"),
 	Left = 4 UMETA(DisplayName = "Left"),
 	Top_Left = 7 UMETA(DisplayName = "Top_Left"),
@@ -55,7 +57,7 @@ enum class OptoOrientation : uint8 {
 };
 
 UCLASS( ClassGroup=(Custom), meta=(BlueprintSpawnableComponent) )
-class STROBO_BP_API UOptotypeComponent : public UActorComponent
+class STROBO_BP_API UOptotypeComponent : public USceneComponent
 {
 	GENERATED_BODY()
 	FTimerHandle OptotypeTimerHandle, StroboTimerHandle;
@@ -64,7 +66,6 @@ class STROBO_BP_API UOptotypeComponent : public UActorComponent
 	float initial_logMAR = 1.4;
 	float previous_logMAR = 1.4;
 	float current_logMAR = 1.3;
-	bool response = {};
 	float distance = 0.0f;
 	USceneComponent* optoPlane;
 	UAudioComponent* metronome_comp;
@@ -81,24 +82,24 @@ class STROBO_BP_API UOptotypeComponent : public UActorComponent
 	UMaterialInstanceDynamic* post_camera_mat;
 	UMaterialInstanceDynamic* stimuli_mat;
 	FPostProcessSettings NormalSettings, PostSettings;
-	void OneMotionCycle(float dir);
-	void OneStroboscopicFlicker();
 	float logMARtoGap(float logMAR);
 public:	
 	// Sets default values for this component's properties
 	UOptotypeComponent();
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Protocol Properties")
-		float field_of_motion;
+		float field_of_motion=30.0f;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Protocol Properties")
-		float metronome_frequency;
+		float metronome_frequency=2.0f;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Protocol Properties")
-		float optotype_frequency;
+		float optotype_frequency=2.0f;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Protocol Properties")
-		float stroboscopic_frequency;
+		float stroboscopic_frequency=4.0f;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Protocol Properties")
-		int8 start_session_id;
+		int start_session_id=0;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Protocol Properties")
-		int8 end_session_id;
+		int end_session_id=11;
+	UPROPERTY(BlueprintReadWrite, Category = "Protocol Properties")
+		bool session_in;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Protocol Properties")
 		MotionDirection motion_direction;
 	UPROPERTY(BlueprintReadWrite, Category = "Protocol Properties")
@@ -128,13 +129,13 @@ public:
 	UPROPERTY(BlueprintReadWrite, Category = "Stimuli Properties")
 		FVector current_opto_position;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stimuli Properties")
-		int How_Many_Opto;
+		int How_Many_Opto=3;
 	UPROPERTY(BlueprintReadWrite, Category = "Countermeasure Properties")
 		float minification = 1.0f;
 	UPROPERTY(BlueprintReadWrite, Category = "Countermeasure Properties")
 		bool stroboscope_on;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Countermeasure Properties")
-		bool Aperture_Size;
+		float Aperture_Size=2.0f;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Countermeasure Properties")
 		UMaterialInterface* parent_mat;
 protected:
@@ -143,7 +144,7 @@ protected:
 
 public:
 	UFUNCTION(BlueprintCallable, Category = "DVA Function")
-		void TestProtocol(ACameraActor* camera, USceneComponent* stimuli_plane, USceneComponent* background_plane, USoundCue* metronome_cue);
+		void TestProtocol(ACameraActor* camera, USceneComponent* stimuli_plane, USceneComponent* background_plane, UAudioComponent* audio_comp, USoundCue* metronome_cue);
 	UFUNCTION(BlueprintCallable, Category = "DVA Function")
 		void NextSession();
 	UFUNCTION(BlueprintCallable, Category = "DVA Function")
@@ -154,6 +155,10 @@ public:
 		void SaveSessionData();
 	UFUNCTION(BlueprintCallable, Category = "DVA Function")
 		void SessionBreak();
+	UFUNCTION(BlueprintCallable, Category = "DVA Function")
+		void OneMotionCycle(float dir);
+	UFUNCTION(BlueprintCallable, Category = "DVA Function")
+		void OneStroboscopicFlicker();
 	// Called every frame
 	virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
 	UFUNCTION(BlueprintCallable, Category = "CSV", meta = (Keywords = "Save"))
