@@ -58,46 +58,222 @@ bool UOptotypeComponent::SaveArrayText(FString SaveDirectory, FString FileName, 
 
 }
 
-void UOptotypeComponent::TestProtocol(ACameraActor* camera, USceneComponent* stimuli_plane, USoundWave* metronome_wave)
+void UOptotypeComponent::TestProtocol(ACameraActor* camera, USceneComponent* stimuli_plane, USceneComponent* background_plane, USoundCue* metronome_cue)
 {
 	//FTimerHandle MetronomeTimerHandle, OptotypeTimerHandle, StroboTimerHandle;
-	FTimerDelegate MetronomeTimerDelegate, OptotypeTimerDelegate, StroboTimerDelegate;
 	//	float metronome_frequency, optotype_frequency, stroboscopic_frequency;
-	float metronome_duration = 1.0f / metronome_frequency, optotype_duration = 1.0f / optotype_frequency, stroboscopic_duration = 1.0f / stroboscopic_frequency;
+	float stroboscopic_duration = 1.0f / stroboscopic_frequency;
 
 	optoPlane = stimuli_plane;
+	UStaticMeshComponent* opto = Cast<UStaticMeshComponent>(optoPlane);
+	stimuli_mat = UMaterialInstanceDynamic::Create(opto->GetMaterial(0), this);
+	opto->SetMaterial(0, stimuli_mat);
 	mycamera = camera->GetCameraComponent();
-	metronome_comp = UAudioComponent()
+	metronome_comp = CreateDefaultSubobject<UAudioComponent>(TEXT("MetronomeAudioComponent"));
+	metronome_comp->AttachTo(optoPlane);
+	distance = FVector::Dist(background_plane->GetComponentLocation(), mycamera->GetComponentLocation())-10.0f;
+
+	switch (motion_direction)
+	{
+	case MotionDirection::Horizontal:
+		default_opto_position = FVector(0.0f, -distance * UKismetMathLibrary::DegTan(field_of_motion), 10.0f);
+		break;
+	case MotionDirection::Vertical:
+		default_opto_position = FVector(distance * UKismetMathLibrary::DegTan(field_of_motion), 0.0f, 10.0f);
+		break;
+	}
+
+	FSoundAttenuationSettings metronome_att_settings;
+	metronome_att_settings.bAttenuate = true;
+	metronome_att_settings.DistanceAlgorithm = EAttenuationDistanceModel::Linear;
+	metronome_att_settings.AttenuationShape = EAttenuationShape::Sphere;
+	metronome_att_settings.AttenuationShapeExtents.X = 1.0f;
+	metronome_att_settings.FalloffDistance = 1000.0f;
+
+	metronome_att_settings.bSpatialize = true;
+	metronome_att_settings.SpatializationAlgorithm = ESoundSpatializationAlgorithm::SPATIALIZATION_HRTF;
+	//metronome_att_settings.PluginSettings.SpatializationPluginSettingsArray
+	metronome_att_settings.OmniRadius = 1.0f;
+	metronome_att_settings.StereoSpread = 50.0f;
+
+	metronome_comp->AdjustAttenuation(metronome_att_settings);
+	metronome_comp->SetSound(metronome_cue);
+	metronome_comp->SetIntParameter(FName("frequency"), (int)metronome_frequency);
 
 	post_camera_mat = UMaterialInstanceDynamic::Create(parent_mat, this);
+	post_camera_mat->SetScalarParameterValue(FName("aperture_radius"), Aperture_Size);
 	TArray<FWeightedBlendable> post_blend;
 	post_blend.Add(FWeightedBlendable(1.0, post_camera_mat));
 	PostSettings.WeightedBlendables = post_blend;
 	NormalSettings = mycamera->PostProcessSettings;
 
-	MetronomeTimerDelegate.BindUFunction(this, FName("OneMetronomeCycle"));
-	OptotypeTimerDelegate.BindUFunction(this, FName("OneMotionCycle"));
-	StroboTimerDelegate.BindUFunction(this, FName("OneStroboscopicFlicker"));
-
-	if (metronome_duration > 0.0f) GetWorld()->GetTimerManager().SetTimer(MetronomeTimerHandle, MetronomeTimerDelegate, metronome_duration, true, 0.0f);
-	if (optotype_duration > 0.0f) GetWorld()->GetTimerManager().SetTimer(OptotypeTimerHandle, OptotypeTimerDelegate, 0.005f, true, 0.0f);
-	if (stroboscopic_duration > 0.0f) GetWorld()->GetTimerManager().SetTimer(StroboTimerHandle, StroboTimerDelegate, stroboscopic_duration, true, 0.0f);
+	pos_in_session = 0;
+	NextSession();
 }
 
 void UOptotypeComponent::NextSession() {
-	distance = UKismetMathLibrary::Vector_Distance(mycamera->GetComponentLocation(), optoPlane->GetComponentLocation())/10.0f;
-	current_opto_size = distance*UKismetMathLibrary::DegTan(20.0f/12.0f);
-	optoPlane->SetRelativeScale3D(FVector(current_opto_size, current_opto_size, 0.0f));
-}
-
-void OneMetronomeCycle() {
+	if (ready_to_quit_game) {
+		return;
+	}
+	previous_logMAR = initial_logMAR;
+	current_logMAR = previous_logMAR - 0.1f;
+	optoPlane->SetRelativeLocation(default_opto_position);
 	
+	current_opto_size = 2.0f *distance* logMARtoGap(initial_logMAR) /100.0f;
+	current_opto_position = default_opto_position;
+	optoPlane->SetRelativeScale3D(FVector(current_opto_size, current_opto_size, 0.0f));
+
+	float metronome_duration = 1.0f / metronome_frequency, optotype_duration = 1.0f / optotype_frequency, stroboscopic_duration = 1.0f / stroboscopic_frequency;
+
+	OptotypeTimerDelegate.BindUFunction(this, FName("OneMotionCycle"), 1.0f);
+	StroboTimerDelegate.BindUFunction(this, FName("OneStroboscopicFlicker"));
+
+	metronome_comp->Play();
+
+	if (pos_in_session < 12) {
+		minification = minification_array[pos_in_session];
+		stroboscope_on = strobo_on_array[pos_in_session];
+		strobo_state = true;
+		post_camera_mat->SetScalarParameterValue(FName("magnify"), 1.0/minification);
+		post_camera_mat->SetScalarParameterValue(FName("strobe"), 1.0);
+		mycamera->PostProcessSettings = PostSettings;
+	}
+	else {
+		ready_to_quit_game = true;
+		return;
+	}
+	if (optotype_duration > 0.0f) GetWorld()->GetTimerManager().SetTimer(OptotypeTimerHandle, OptotypeTimerDelegate, 0.005f, true, 0.0f);
+	if (stroboscopic_duration > 0.0f) GetWorld()->GetTimerManager().SetTimer(StroboTimerHandle, StroboTimerDelegate, stroboscopic_duration, true, 0.0f);
+	
+	opto_orientation = OptoOrientation::Right;
+	total_opto_tested = 0;
+	total_opto_correct = 0;
+	NextStimuli();
 }
 
-void OneMotionCycle() {
-
+void UOptotypeComponent::SaveSessionData()
+{
+	TArray < FString> DVA_Data = { "Subject ID, Best Correctable Vision, Age, Gender, Any ocular history or surgery, Any neurological/balancing disorder, Any seizures or vertigo?, Laptop based DVA, DVA with Headset,	Minifying lens (30%) smaller DVA, Minifying lens (50%) smaller DVA,	Minifying lens (70%) smaller DVA, Minifying lens (80%) smaller DVA,	DVA with Headset (no countermeasures), Minifying lens (30%) smaller + Stroboscopic DVA,	Minifying lens (50%) smaller +  Stroboscopic DVA, Minifying lens (70%) smaller +  Stroboscopic DVA,	Minifying lens (80%) smaller +  Stroboscopic DVA,	Stroboscopic Effect only- Measure DVA,	Measure DVA with headset (again)" };
+	FString temp;
+	temp += Subject_ID + ",";
+	if (BCVA_2020) temp += "Yes,";
+	else temp += "No,";
+	temp += FString::SanitizeFloat(Age)+",";
+	temp += genders[(int)gender]+",";
+	if(ocular_history_of_surgery) temp += "Yes,";
+	else temp += "No,";
+	if(neuro_balancing_disorder) temp += "Yes,";
+	else temp += "No,";
+	if(seizure_vertigo) temp += "Yes,";
+	else temp += "No,";
+	//Laptop_based_DVA
+	temp += FString::SanitizeFloat(Laptop_Based_DVA_logMAR)+",";
+	//DVA with Headset
+	temp += FString::SanitizeFloat(result_per_session[0])+",";
+	//Minifying lens (30%) smaller DVA
+	temp += FString::SanitizeFloat(result_per_session[1]) + ",";
+	//Minifying lens (50%) smaller DVA
+	temp += FString::SanitizeFloat(result_per_session[2]) + ",";
+	//Minifying lens (70%) smaller DVA
+	temp += FString::SanitizeFloat(result_per_session[3]) + ",";
+	//Minifying lens (80%) smaller DVA
+	temp += FString::SanitizeFloat(result_per_session[4]) + ",";
+	//DVA with Headset (no countermeasures)
+	temp += FString::SanitizeFloat(result_per_session[5]) + ",";
+	//Minifying lens (30%) smaller + Stroboscopic DVA
+	temp += FString::SanitizeFloat(result_per_session[6]) + ",";
+	//Minifying lens (50%) smaller + Stroboscopic DVA
+	temp += FString::SanitizeFloat(result_per_session[7]) + ",";
+	//Minifying lens (70%) smaller + Stroboscopic DVA
+	temp += FString::SanitizeFloat(result_per_session[8]) + ",";
+	//Minifying lens (80%) smaller + Stroboscopic DVA
+	temp += FString::SanitizeFloat(result_per_session[9]) + ",";
+	//Stroboscopic Effect only- Measure DVA
+	temp += FString::SanitizeFloat(result_per_session[10]) + ",";
+	//Measure DVA with headset (again)
+	temp += FString::SanitizeFloat(result_per_session[11]) + ",";
+	pos_in_session++;
+	SessionBreak();
 }
 
-void OneStroboscopicFlicker() {
+void UOptotypeComponent::NextStimuli()
+{
+	opto_orientation = static_cast<OptoOrientation>(FMath::Fmod((int)opto_orientation + FMath::RandRange(1, 7), 8));
+	if(opto_orientation == OptoOrientation::Middle){
+		opto_orientation = OptoOrientation::Right;
+	}
+	stimuli_mat->SetScalarParameterValue(FName("orientation"), response_mapping[(int)opto_orientation-1]);
+}
 
+void UOptotypeComponent::AssessResponse(OptoOrientation response) {
+	total_opto_tested++;
+	if (response == opto_orientation) {
+		total_opto_correct++;
+	}
+	if (total_opto_tested < How_Many_Opto) {
+		NextStimuli();
+	}
+	else {
+		if (2 * total_opto_correct > total_opto_tested) {
+			previous_logMAR = current_logMAR;
+			current_logMAR -= 0.1f;
+		}
+		else {
+			current_logMAR = (current_logMAR + previous_logMAR) / 2.0f;
+		}
+		if (FMath::Abs(current_logMAR - previous_logMAR) < 0.03f) {
+			result_per_session[pos_in_session] = previous_logMAR;
+			if (pos_in_session == 0) {
+				initial_logMAR = previous_logMAR;
+			}
+			SaveSessionData();
+		}
+		current_opto_size = 2.0f * distance * logMARtoGap(current_logMAR) / 100.0f;
+		current_opto_position = default_opto_position;
+		optoPlane->SetRelativeScale3D(FVector(current_opto_size, current_opto_size, 0.0f));
+		total_opto_tested = 0;
+		total_opto_correct = 0;
+	}
+}
+
+void UOptotypeComponent::SessionBreak() {
+	metronome_comp->Stop();
+	mycamera->PostProcessSettings = NormalSettings;
+}
+
+void UOptotypeComponent::OneMotionCycle(float dir) {
+	Elapsed_time += 0.005f;
+	float temp_dist = 2*distance * UKismetMathLibrary::DegTan(field_of_motion);
+	float travel_to = 0.005*temp_dist* optotype_frequency;
+	switch (motion_direction)
+	{
+	case MotionDirection::Horizontal:
+		current_opto_position = FVector(current_opto_position.X, current_opto_position.Y+travel_to, current_opto_position.Z);
+		break;
+	case MotionDirection::Vertical:
+		current_opto_position = FVector(current_opto_position.X + travel_to, current_opto_position.Y, current_opto_position.Z);
+		break;
+	}
+	optoPlane->SetRelativeLocation(current_opto_position);
+	float cur_offset = FVector::Dist(current_opto_position, default_opto_position);
+	if ((dir > 0 && cur_offset>=temp_dist) || (dir < 0 && cur_offset <= 0)) {
+		dir = -dir;
+	}
+}
+
+void UOptotypeComponent::OneStroboscopicFlicker() {
+	if (stroboscope_on) {
+		if (strobo_state) {
+			post_camera_mat->SetScalarParameterValue(FName("strobe"), 1.0);
+		}
+		else {
+			post_camera_mat->SetScalarParameterValue(FName("strobe"), 0.0);
+		}
+		strobo_state = !strobo_state;
+	}
+}
+
+float UOptotypeComponent::logMARtoGap(float logMAR)
+{
+	return UKismetMathLibrary::DegTan(FMath::Pow(10, logMAR) / 12.0f);
 }
