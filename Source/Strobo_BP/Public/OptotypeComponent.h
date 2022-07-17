@@ -44,16 +44,16 @@ enum class Gender : uint8 {
 
 UENUM(BlueprintType)
 enum class OptoOrientation : uint8 {
-	Zero = 0 UMETA(DisplayName = "Left"),
+	Zero = 0 UMETA(DisplayName = "Left"), //
 	Bottom_Left = 1 UMETA(DisplayName = "Bottom_Left"),
+	Bottom = 2 UMETA(DisplayName = "Bottom"),
+	Bottom_Right = 3 UMETA(DisplayName = "Bottom_Right"),
 	Left = 4 UMETA(DisplayName = "Left"),
+	Middle = 5 UMETA(DisplayName = "Right"),
+	Right = 6 UMETA(DisplayName = "Right"),
 	Top_Left = 7 UMETA(DisplayName = "Top_Left"),
 	Top = 8 UMETA(DisplayName = "Top"),
 	Top_Right = 9 UMETA(DisplayName = "Top_Right"),
-	Right = 6 UMETA(DisplayName = "Right"),
-	Bottom_Right = 3 UMETA(DisplayName = "Bottom_Right"),
-	Bottom = 2 UMETA(DisplayName = "Bottom"),
-	Middle = 5 UMETA(DisplayName = "Middle"),
 };
 
 UCLASS( ClassGroup=(Custom), meta=(BlueprintSpawnableComponent) )
@@ -64,17 +64,15 @@ class STROBO_BP_API UOptotypeComponent : public USceneComponent
 	FTimerDelegate OptotypeTimerDelegate, StroboTimerDelegate;
 	float Elapsed_time = 0.0;
 	float initial_logMAR = 1.4;
-	float previous_logMAR = 1.4;
-	float current_logMAR = 1.3;
-	float distance = 0.0f;
+	//float distance = 0.0f;
+	float temp_dist;;
 	USceneComponent* optoPlane;
 	UAudioComponent* metronome_comp;
-	int total_opto_tested = 0;
 	int total_opto_correct = 0;
 	UCameraComponent* mycamera;
 	bool strobo_state = true;
 	float minification_array[12] = {1.0f, 0.3f, 0.5f, 0.7f, 0.8f, 1.0f, 0.3f, 0.5f, 0.7f, 0.8f, 1.0f, 1.0f};
-	float response_mapping[9] = { 0.625f, 0.75f, 0.875f, 0.5f, 0.0f, 0.0f, 0.375f, 0.25f, 0.125f };
+	float response_mapping[10] = { 0.5, 0.625f, 0.75f, 0.875f, 0.5f, 0.0f, 0.0f, 0.375f, 0.25f, 0.125f };
 	bool strobo_on_array[12] = { false, false, false, false, false, false, true, true, true, true, true, false };
 	float result_per_session[12] = { 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f };
 	FString genders[3] = { "Male", "Female", "Other" };
@@ -121,15 +119,27 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Subject Information")
 		float Laptop_Based_DVA_logMAR;
 	UPROPERTY(BlueprintReadWrite, Category = "Stimuli Properties")
-		OptoOrientation opto_orientation;
+		int opto_orientation;
 	UPROPERTY(BlueprintReadWrite, Category = "Stimuli Properties")
 		float current_opto_size;
 	UPROPERTY(BlueprintReadWrite, Category = "Stimuli Properties")
 		FVector default_opto_position;
 	UPROPERTY(BlueprintReadWrite, Category = "Stimuli Properties")
 		FVector current_opto_position;
+	UPROPERTY(BlueprintReadWrite, Category = "Stimuli Properties")
+		float cur_offset;
+	UPROPERTY(BlueprintReadWrite, Category = "Stimuli Properties")
+		int total_opto_tested;
+	UPROPERTY(BlueprintReadWrite, Category = "Stimuli Properties")
+		float dir;
+	UPROPERTY(BlueprintReadWrite, Category = "Stimuli Properties")
+		float distance;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stimuli Properties")
 		int How_Many_Opto=3;
+	UPROPERTY(BlueprintReadWrite, Category = "Stimuli Properties")
+		float previous_logMAR = 1.4;
+	UPROPERTY(BlueprintReadWrite, Category = "Stimuli Properties")
+		float current_logMAR = 1.3;
 	UPROPERTY(BlueprintReadWrite, Category = "Countermeasure Properties")
 		float minification = 1.0f;
 	UPROPERTY(BlueprintReadWrite, Category = "Countermeasure Properties")
@@ -156,7 +166,7 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "DVA Function")
 		void SessionBreak();
 	UFUNCTION(BlueprintCallable, Category = "DVA Function")
-		void OneMotionCycle(float dir);
+		void OneMotionCycle();
 	UFUNCTION(BlueprintCallable, Category = "DVA Function")
 		void OneStroboscopicFlicker();
 	// Called every frame

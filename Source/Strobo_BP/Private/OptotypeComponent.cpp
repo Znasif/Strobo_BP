@@ -106,6 +106,16 @@ void UOptotypeComponent::TestProtocol(ACameraActor* camera, USceneComponent* sti
 	TArray<FWeightedBlendable> post_blend;
 	post_blend.Add(FWeightedBlendable(1.0, post_camera_mat));
 	PostSettings.WeightedBlendables = post_blend;
+	PostSettings.bOverride_AutoExposureBias = true;
+	PostSettings.bOverride_BloomIntensity = true;
+	PostSettings.bOverride_MotionBlurAmount = true;
+	PostSettings.bOverride_AutoExposureMaxBrightness = true;
+	PostSettings.bOverride_AutoExposureMinBrightness = true;
+	PostSettings.AutoExposureBias = 0.0f;
+	PostSettings.AutoExposureMaxBrightness = 1.0f;
+	PostSettings.AutoExposureMinBrightness = 1.0f;
+	PostSettings.BloomIntensity = 0.0f;
+	PostSettings.MotionBlurAmount = 0.0f;
 	NormalSettings = mycamera->PostProcessSettings;
 
 	pos_in_session = 0;
@@ -126,7 +136,8 @@ void UOptotypeComponent::NextSession() {
 
 	float metronome_duration = 1.0f / metronome_frequency, optotype_duration = 1.0f / optotype_frequency, stroboscopic_duration = 1.0f / stroboscopic_frequency;
 
-	OptotypeTimerDelegate.BindUFunction(this, FName("OneMotionCycle"), 1.0f);
+	dir = 1.0f;
+	OptotypeTimerDelegate.BindUFunction(this, FName("OneMotionCycle"));
 	StroboTimerDelegate.BindUFunction(this, FName("OneStroboscopicFlicker"));
 
 	metronome_comp->Play();
@@ -147,9 +158,10 @@ void UOptotypeComponent::NextSession() {
 	if (optotype_duration > 0.0f) GetWorld()->GetTimerManager().SetTimer(OptotypeTimerHandle, OptotypeTimerDelegate, 0.005f, true, 0.0f);
 	if (stroboscopic_duration > 0.0f) GetWorld()->GetTimerManager().SetTimer(StroboTimerHandle, StroboTimerDelegate, stroboscopic_duration, true, 0.0f);
 	
-	opto_orientation = OptoOrientation::Right;
+	opto_orientation = 6;// OptoOrientation::Right;
 	total_opto_tested = 0;
 	total_opto_correct = 0;
+	NextStimuli();
 }
 
 void UOptotypeComponent::SessionBreak() {
@@ -214,20 +226,25 @@ void UOptotypeComponent::SaveSessionData()
 
 void UOptotypeComponent::NextStimuli()
 {
-	opto_orientation = static_cast<OptoOrientation>(FMath::Fmod((int)opto_orientation + FMath::RandRange(1, 7), 8));
-	if(opto_orientation == OptoOrientation::Middle){
-		opto_orientation = OptoOrientation::Right;
+	opto_orientation = FMath::Fmod(opto_orientation + FMath::RandRange(1, 9), 10);
+	if(opto_orientation == 5){
+		opto_orientation = 6;
 	}
-	if (opto_orientation == OptoOrientation::Zero) {
-		opto_orientation = OptoOrientation::Left;
+	if (opto_orientation == 0) {
+		opto_orientation = 4;
 	}
-	stimuli_mat->SetScalarParameterValue(FName("orientation"), response_mapping[(int)opto_orientation-1]);
+	stimuli_mat->SetScalarParameterValue(FName("orientation"), response_mapping[opto_orientation]);
 }
 
 void UOptotypeComponent::AssessResponse(OptoOrientation response) {
 	total_opto_tested++;
-	if (response == opto_orientation) {
+	if ((int)response == opto_orientation) {
 		total_opto_correct++;
+		GEngine->AddOnScreenDebugMessage(-1, 2.0f, FColor::Green, FString::Printf(TEXT("Correct")));
+		//GEngine->AddOnScreenDebugMessage(-1, 2.0f, FColor::Green, FString::Printf(TEXT("LogMAR Difference: %d"), FMath::Abs(current_logMAR - previous_logMAR)));
+	}
+	else {
+		GEngine->AddOnScreenDebugMessage(-1, 2.0f, FColor::Red, FString::Printf(TEXT("Incorrect")));
 	}
 	if (total_opto_tested < How_Many_Opto) {
 		NextStimuli();
@@ -241,10 +258,11 @@ void UOptotypeComponent::AssessResponse(OptoOrientation response) {
 			current_logMAR = (current_logMAR + previous_logMAR) / 2.0f;
 		}
 		if (FMath::Abs(current_logMAR - previous_logMAR) < 0.03f) {
-			result_per_session[pos_in_session] = previous_logMAR;
+			result_per_session[pos_in_session] = current_logMAR;
 			if (pos_in_session == 0) {
 				initial_logMAR = previous_logMAR;
 			}
+			//GEngine->AddOnScreenDebugMessage(-1, 2.0f, FColor::Red, FString::Printf(TEXT("LogMAR Difference: %d"), FMath::Abs(current_logMAR - previous_logMAR)));
 			SaveSessionData();
 		}
 		current_opto_size = 2.0f * distance * logMARtoGap(current_logMAR) / 100.0f;
@@ -255,24 +273,27 @@ void UOptotypeComponent::AssessResponse(OptoOrientation response) {
 	}
 }
 
-void UOptotypeComponent::OneMotionCycle(float dir) {
+void UOptotypeComponent::OneMotionCycle() {
 	Elapsed_time += 0.005f;
-	float temp_dist = 2*distance * UKismetMathLibrary::DegTan(field_of_motion);
-	float travel_to = 0.005*temp_dist* optotype_frequency;
+	cur_offset = FVector::Dist(current_opto_position, default_opto_position);
+	temp_dist = 2 * distance * UKismetMathLibrary::DegTan(field_of_motion);
+	if (cur_offset >= temp_dist) {
+		dir = -1.0f;
+	}
+	else if (cur_offset <= 0) {
+		dir = 1.0f;;
+	}
+	float travel_to = dir *FMath::Abs( 0.005 * temp_dist * optotype_frequency);
 	switch (motion_direction)
 	{
 	case MotionDirection::Horizontal:
-		current_opto_position = FVector(current_opto_position.X, current_opto_position.Y+travel_to, current_opto_position.Z);
+		current_opto_position = FVector(current_opto_position.X, current_opto_position.Y + travel_to, current_opto_position.Z);
 		break;
 	case MotionDirection::Vertical:
 		current_opto_position = FVector(current_opto_position.X + travel_to, current_opto_position.Y, current_opto_position.Z);
 		break;
 	}
 	optoPlane->SetRelativeLocation(current_opto_position);
-	float cur_offset = FVector::Dist(current_opto_position, default_opto_position);
-	if ((dir > 0 && cur_offset>=temp_dist) || (dir < 0 && cur_offset <= 0)) {
-		dir = -dir;
-	}
 }
 
 void UOptotypeComponent::OneStroboscopicFlicker() {
