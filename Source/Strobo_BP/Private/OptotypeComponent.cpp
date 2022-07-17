@@ -146,9 +146,10 @@ void UOptotypeComponent::NextSession() {
 		minification = minification_array[pos_in_session];
 		stroboscope_on = strobo_on_array[pos_in_session];
 		strobo_state = true;
-		post_camera_mat->SetScalarParameterValue(FName("magnify"), 1.0/minification);
+		post_camera_mat->SetScalarParameterValue(FName("magnify"), 1.0 / minification);
 		post_camera_mat->SetScalarParameterValue(FName("strobe"), 1.0);
 		mycamera->PostProcessSettings = PostSettings;
+		//GEngine->AddOnScreenDebugMessage(-1, 10.0f, FColor::Green, FString::Printf(TEXT("PostProcessing : %f %d"), minification, stroboscope_on));
 	}
 	else {
 		ready_to_quit_game = true;
@@ -218,7 +219,7 @@ void UOptotypeComponent::SaveSessionData()
 	DVA_Data.Add(temp);
 
 	FString SaveLocation = FPaths::ConvertRelativePathToFull(FPaths::ProjectSavedDir());
-	SaveArrayText(SaveLocation, Subject_ID+"_"+FString::FromInt(start_session_id)+"_"+ FString::FromInt(end_session_id) +"_DVA.csv", DVA_Data);
+	SaveArrayText(SaveLocation, Subject_ID+"_"+FString::FromInt(start_session_id)+"_"+ FString::FromInt(end_session_id) +"_DVA.csv", DVA_Data, true);
 	pos_in_session++;
 	session_in = false;
 	SessionBreak();
@@ -238,14 +239,7 @@ void UOptotypeComponent::NextStimuli()
 
 void UOptotypeComponent::AssessResponse(OptoOrientation response) {
 	total_opto_tested++;
-	if ((int)response == opto_orientation) {
-		total_opto_correct++;
-		GEngine->AddOnScreenDebugMessage(-1, 2.0f, FColor::Green, FString::Printf(TEXT("Correct")));
-		//GEngine->AddOnScreenDebugMessage(-1, 2.0f, FColor::Green, FString::Printf(TEXT("LogMAR Difference: %d"), FMath::Abs(current_logMAR - previous_logMAR)));
-	}
-	else {
-		GEngine->AddOnScreenDebugMessage(-1, 2.0f, FColor::Red, FString::Printf(TEXT("Incorrect")));
-	}
+	if ((int)response == opto_orientation) 	total_opto_correct++;
 	if (total_opto_tested < How_Many_Opto) {
 		NextStimuli();
 	}
@@ -306,6 +300,7 @@ void UOptotypeComponent::OneStroboscopicFlicker() {
 		}
 		strobo_state = !strobo_state;
 	}
+	//GEngine->AddOnScreenDebugMessage(-1, 0.02f, FColor::Red, FString::Printf(TEXT("PostProcessing : %d"), strobo_state));
 }
 
 float UOptotypeComponent::logMARtoGap(float logMAR)
