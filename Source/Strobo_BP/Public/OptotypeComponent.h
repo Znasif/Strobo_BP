@@ -71,7 +71,7 @@ class STROBO_BP_API UOptotypeComponent : public USceneComponent
 	int total_opto_correct = 0;
 	UCameraComponent* mycamera;
 	bool strobo_state = true;
-	float minification_array[12] = {1.0f, 0.3f, 0.5f, 0.7f, 0.8f, 1.0f, 0.3f, 0.5f, 0.7f, 0.8f, 1.0f, 1.0f};
+	float minification_array[12] = {1.0f, 0.7f, 0.5f, 0.3f, 0.2f, 1.0f, 0.7f, 0.5f, 0.3f, 0.2f, 1.0f, 1.0f};
 	float response_mapping[10] = { 0.5, 0.625f, 0.75f, 0.875f, 0.5f, 0.0f, 0.0f, 0.375f, 0.25f, 0.125f };
 	bool strobo_on_array[12] = { false, false, false, false, false, false, true, true, true, true, true, false };
 	float result_per_session[12] = { 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f };

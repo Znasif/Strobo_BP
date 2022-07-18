@@ -253,9 +253,9 @@ void UOptotypeComponent::AssessResponse(OptoOrientation response) {
 		}
 		if (FMath::Abs(current_logMAR - previous_logMAR) < 0.03f) {
 			result_per_session[pos_in_session] = current_logMAR;
-			if (pos_in_session == 0) {
+			/*if (pos_in_session == 0) {
 				initial_logMAR = previous_logMAR;
-			}
+			}*/
 			//GEngine->AddOnScreenDebugMessage(-1, 2.0f, FColor::Red, FString::Printf(TEXT("LogMAR Difference: %d"), FMath::Abs(current_logMAR - previous_logMAR)));
 			SaveSessionData();
 		}
