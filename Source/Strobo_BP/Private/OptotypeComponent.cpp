@@ -118,7 +118,7 @@ void UOptotypeComponent::TestProtocol(ACameraActor* camera, USceneComponent* sti
 	PostSettings.MotionBlurAmount = 0.0f;
 	NormalSettings = mycamera->PostProcessSettings;
 
-	pos_in_session = 0;
+	pos_in_session = start_session_id;
 }
 
 void UOptotypeComponent::NextSession() {
