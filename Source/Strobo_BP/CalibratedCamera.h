@@ -6,6 +6,8 @@
 #include "Engine/Scene.h"
 #include "Misc/Paths.h"
 #include "Camera/CameraActor.h"
+#include "SRanipalEye_Core.h"											//HTC VIVE
+#include "SRanipalEye_Framework.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "Camera/CameraComponent.h"
 #include "CalibratedCamera.generated.h"
@@ -32,6 +34,14 @@ class STROBO_BP_API ACalibratedCamera : public ACameraActor
 	FPostProcessSettings Normal_settings, Post_settings;
 	TArray<FWeightedBlendable> postTone, preTone;
 	UMaterialInstanceDynamic *premat, *postmat;
+	SRanipalEye_Core* eye_core_vive;
+	bool eye_tracking_ready = false;
+	TArray<float> gaze_time;
+	TArray<FVector> gaze_directions;
+	float elapsed_time;
+	int gazes = 0;
+
+	FString SavingLocation = "E:\\Unreal Projects\\Vision Assessments\\Strobo_BP\\Saved\\Processed_Data";//
 protected:
 	// Called when the game starts or when spawned
 	virtual void BeginPlay() override;
@@ -41,6 +51,9 @@ public:
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DEBUGGING")
 		int serial = 0;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DEBUGGING")
+		bool do_calibration = true;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DEBUGGING")
 		UMaterialInstanceDynamic* postprocess_material;
@@ -77,5 +90,11 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category = "Color Calibration", meta = (Keywords = "Start"))
 		FLinearColor stepped_primaries_serially();
+
+	UFUNCTION(BlueprintCallable, Category = "Gaze", meta = (Keywords = "End"))
+		void save(FString Subject_ID);
+
+	UFUNCTION(BlueprintCallable, Category = "Save", meta = (Keywords = "Utilities"))
+		bool SaveArrayText(FString SaveDirectory, FString FileName, TArray<FString> SaveText, bool AllowOverwriting);
 };
 

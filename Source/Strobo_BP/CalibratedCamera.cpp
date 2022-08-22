@@ -34,12 +34,36 @@ void ACalibratedCamera::BeginPlay()
 	preTone.Add(FWeightedBlendable(1.0, premat));
 	
 	Normal_settings = alterCamera->PostProcessSettings;
+
+	SRanipalEye_Framework::Instance()->StartFramework(SupportedEyeVersion::version2);
+	eye_core_vive = SRanipalEye_Core::Instance();
+	if (do_calibration) eye_core_vive->LaunchEyeCalibration_(nullptr);
+	eye_tracking_ready = true;
+	elapsed_time = 0.0f;
 }
 
 // Called every frame
 void ACalibratedCamera::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
+	if (eye_tracking_ready) {
+		ViveSR::anipal::Eye::EyeData_v2 data;
+		int error = eye_core_vive->GetEyeData_v2(&data);
+
+		FString Pupil_Diameter_Left = FString::SanitizeFloat(data.verbose_data.left.pupil_diameter_mm);
+		FString Pupil_Diameter_Right = FString::SanitizeFloat(data.verbose_data.right.pupil_diameter_mm);
+		FVector gaze_direction = data.verbose_data.combined.eye_data.gaze_direction_normalized;
+		FVector gaze_origin = data.verbose_data.combined.eye_data.gaze_origin_mm;
+
+		gaze_directions.Add(gaze_direction);
+		elapsed_time += DeltaTime;
+		gaze_time.Add(elapsed_time);
+		gazes++;
+
+		FString Gaze_Origin = FString::SanitizeFloat(gaze_origin.X) + "," + FString::SanitizeFloat(gaze_origin.Y) + "," + FString::SanitizeFloat(gaze_origin.Z);
+		FString Gaze_Direction = FString::SanitizeFloat(gaze_direction.X) + "," + FString::SanitizeFloat(gaze_direction.Y) + "," + FString::SanitizeFloat(gaze_direction.Z);
+		//GEngine->AddOnScreenDebugMessage(-1, 0.08f, FColor::White, FString::Printf(TEXT("Output: %s, %s"), Gaze_Origin, Gaze_Direction));
+	}
 }
 
 void ACalibratedCamera::switch_camera_settings() {
@@ -231,3 +255,37 @@ FLinearColor ACalibratedCamera::stepped_primaries_serially() {
 	}
 }
 
+bool ACalibratedCamera::SaveArrayText(FString SaveDirectory, FString FileName, TArray<FString> SaveText, bool AllowOverwriting = false)
+{
+	// Set complete file path
+	SaveDirectory += "\\";
+	SaveDirectory += FileName;
+
+	if (!AllowOverwriting)
+	{
+		if (FPlatformFileManager::Get().GetPlatformFile().FileExists(*SaveDirectory))
+		{
+			return false;
+		}
+	}
+
+	FPlatformFileManager::Get().GetPlatformFile().DeleteFile(*SaveDirectory);
+	FString FinalString = "";
+	for (FString& Each : SaveText)
+	{
+		FinalString += Each;
+		FinalString += LINE_TERMINATOR;
+	}
+
+	return FFileHelper::SaveStringToFile(FinalString, *SaveDirectory);
+
+}
+
+void ACalibratedCamera::save(FString Subject_ID) {
+	FString SaveLocation = FPaths::ConvertRelativePathToFull(FPaths::ProjectSavedDir());
+	TArray<FString> gaze_data = {"Time, Gaze_direction_x, Gaze_direction_y, Gaze_direction_z"};
+	for (int i = 0; i < gazes; i++) {
+		gaze_data.Add(FString::SanitizeFloat(gaze_time[i]) + "," + FString::SanitizeFloat(gaze_directions[i].X) + "," + FString::SanitizeFloat(gaze_directions[i].Y) + "," + FString::SanitizeFloat(gaze_directions[i].Z));
+	}
+	SaveArrayText(SaveLocation, Subject_ID + "_gaze_data.csv", gaze_data, true);
+}

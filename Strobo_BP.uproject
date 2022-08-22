@@ -19,6 +19,10 @@
 			"Enabled": true
 		},
 		{
+			"Name": "SRanipal",
+			"Enabled": true
+		},
+		{
 			"Name": "SteamVR",
 			"Enabled": true,
 			"SupportedTargetPlatforms": [
